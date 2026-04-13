@@ -40,14 +40,13 @@ Claude reads a file / fetches a URL / runs a command
 
 ### Install
 
-Install the plugin (both tools install together):
-
 ```bash
-/plugin marketplace add /path/to/claude-security
+# Register the marketplace and install
+/plugin marketplace add 0x1337c0d3/claude-security
 /plugin install claude-security@claude-security
 ```
 
-Or load directly for testing:
+Or load locally for testing:
 
 ```bash
 claude --plugin-dir /path/to/claude-security

@@ -121,7 +121,7 @@ jobs:
           SCRIPTS_DIR="$GITHUB_WORKSPACE/skills/sentinel/scripts"
           CONSOLIDATED="${{ steps.consolidate.outputs.consolidated }}"
 
-          SCORE_JSON="$("$SCRIPTS_DIR/calculate-score.sh" "$CONSOLIDATED")"
+          SCORE_JSON="$("$SCRIPTS_DIR/calculate-score.sh" "$CONSOLIDATED" | jq -c '.')"
           echo "score_json=$SCORE_JSON" >> "$GITHUB_OUTPUT"
 
           SCORE="$(echo "$SCORE_JSON" | jq '.score')"

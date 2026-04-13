@@ -1,7 +1,13 @@
 # Created by https://www.toptal.com/developers/gitignore/api/macos,node,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,node,python
 
-.claude-logs
+.claude-logs/
+reports/
+
+# Local Claude Code dev config — not distributed with the plugin
+# Each contributor sets this up locally; see CLAUDE.md for hook details
+.claude/settings.json
+.claude/settings.local.json
 
 ### macOS ###
 # General

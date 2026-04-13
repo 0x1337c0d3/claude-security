@@ -1,7 +1,13 @@
-# Claude Security
-Autonomous security for your AI coding assistant.
-SAST. Secrets. Injection defense. One plugin.
+<p align="center">
+  <h1 align="center">
+  Claude Security
+  </h1>
+</p>
 
+<p align="center">
+  Autonomous security for your AI coding assistant.
+  SAST. Secrets. Injection defense. One plugin.
+</p>
 
 ## What's Included
 
@@ -11,6 +17,8 @@ This repo ships two security tools that work together inside Claude Code:
 |------|------|-------------|
 | **Prompt Injection Defender** | PostToolUse hook | Scans every tool output in real-time for hidden injection attacks |
 | **Sentinel** | Skill | Full-stack security scanner — SAST, secrets, dependency audits, scoring |
+| **Pre-commit Hook** | git hook | Blocks commits with CRITICAL/HIGH findings before they land |
+| **GitHub Actions Workflow** | CI | Runs the full Sentinel scan on every push and pull request |
 | **Safety Hook** | PreToolUse hook | Blocks dangerous `rm -rf` commands and `.env` file access |
 | **Tool Logger** | PostToolUse hook | Logs all tool calls to `.claude-logs/` for auditing |
 
@@ -94,10 +102,10 @@ Your Code → detect-stack →  | gitleaks Secrets  |  Full git history scan
                                      ↓
                             calculate-score.sh
                                      ↓
-                  +-----------------+-----------------+
-                  |                 |                 |
-            Risk Score        Fix Proposals     GitHub Issues
-             (0–100)          (ready diffs)     (per finding)
+                   +-----------------+-----------------+
+                   |                 |                 |
+             Risk Score        Fix Proposals     GitHub Issues
+              (0–100)          (ready diffs)     (per finding)
 ```
 
 ### Quick Start
@@ -154,23 +162,131 @@ Node.js, Python, PHP, Go, Ruby, Rust, Java, C# — auto-detected from lock files
 
 ---
 
+## Pre-commit Hook
+
+Block vulnerable code before it ever reaches your repository. The Sentinel pre-commit hook runs SAST and secrets scanning on staged files only — fast enough to stay out of your way.
+
+```
+git commit
+    ↓
+pre-commit hook fires
+    ↓
+Copies staged files → detect-stack → run-sast (per language) + gitleaks --staged
+    ↓
+CRITICAL or HIGH found?  → commit BLOCKED  (exit 1)
+No blocking findings?    → commit proceeds (exit 0)
+```
+
+### Install
+
+From inside Claude Code, run:
+
+```
+/install-git-hook
+```
+
+Claude will ask for your target project path, resolve the Sentinel install location, and write `.git/hooks/pre-commit` automatically.
+
+Or install manually:
+
+```bash
+cat > /path/to/your-project/.git/hooks/pre-commit << 'EOF'
+#!/usr/bin/env bash
+export SENTINEL_DIR="/absolute/path/to/claude-security/skills/sentinel"
+exec "$SENTINEL_DIR/scripts/pre-commit.sh" "$@"
+EOF
+chmod +x /path/to/your-project/.git/hooks/pre-commit
+```
+
+### Example output
+
+```
+[sentinel] Scanning staged files for security issues...
+┌─ Sentinel findings ─────────────────────────────────────────┐
+  CRITICAL  src/auth.py:42    Hardcoded secret: aws-access-token
+  HIGH      src/db.py:17      SQL injection: string concatenation in query
+└─────────────────────────────────────────────────────────────┘
+
+  Total: 2  |  Critical: 1  High: 1  Medium: 0  Low: 0
+
+[sentinel] COMMIT BLOCKED — 2 CRITICAL/HIGH finding(s) must be resolved.
+           To bypass in an emergency: SENTINEL_SKIP=1 git commit
+```
+
+### Emergency bypass
+
+```bash
+SENTINEL_SKIP=1 git commit -m "hotfix: deploy now, fix security after"
+```
+
+---
+
+## GitHub Actions
+
+The included workflow runs the full Sentinel pipeline on every push and pull request, fails the check on CRITICAL/HIGH findings, and annotates changed lines directly in the PR diff.
+
+### Self-hosted (this repo scans itself)
+
+The workflow is already wired up at `.github/workflows/sentinel.yml`.
+
+### Use it in your own repo
+
+Call it as a reusable workflow with one step:
+
+```yaml
+# .github/workflows/security.yml in your project
+jobs:
+  security:
+    uses: 0x1337c0d3/claude-security/.github/workflows/sentinel.yml@main
+```
+
+Or copy `.github/workflows/sentinel.yml` into your repo directly — it has no dependencies outside the `skills/sentinel/scripts/` directory.
+
+### Configurable fail threshold
+
+```yaml
+jobs:
+  security:
+    uses: 0x1337c0d3/claude-security/.github/workflows/sentinel.yml@main
+    with:
+      fail_on_severity: CRITICAL   # default: HIGH
+```
+
+### What runs in CI
+
+| Step | Tool | Output |
+|------|------|--------|
+| Detect stack | `detect-stack.sh` | Languages, frameworks |
+| SAST | Semgrep + 82 custom rules | Per-language findings |
+| Secrets | gitleaks | Hardcoded credentials |
+| Consolidate | `consolidate.sh` | Unified findings JSON |
+| Score | `calculate-score.sh` | Risk score 0–100 |
+| Annotate | GitHub workflow commands | PR line annotations |
+| Gate | exit 1 on CRITICAL/HIGH | Fails the CI check |
+
+---
+
 ## Project Structure
 
 ```
 claude-security/
 ├── skills/
 │   ├── sentinel/                   # /claude-security:sentinel skill
+│   │   └── scripts/
+│   │       └── pre-commit.sh       # Git pre-commit hook (staged-files scan)
 │   └── prompt-injection-defender/  # patterns + hook implementation
 ├── hooks/
 │   └── hooks.json                  # Registers defender hook when plugin is installed
 ├── commands/
-│   ├── install.md                  # Interactive install workflow
-│   └── prime.md                    # Prompt injection awareness doc
-└── .claude/                        # Local dev config (not distributed with plugin)
+│   └── install-git-hook.md         # /install-git-hook slash command
+└── .github/
+│   └── workflows/
+│       └── sentinel.yml            # CI workflow (push/PR + reusable workflow_call)
+└── .claude/                        # Local dev config — gitignored, not distributed
     ├── hooks/
     │   ├── pre_tool_use.py         # Blocks dangerous rm and .env access
     │   └── post_tool_use.py        # Logs tool use to .claude-logs/
-    └── settings.json               # Wires up hooks for working on this repo
+    └── settings.json               # Wires up hooks — copy from CLAUDE.md to set up locally
 ```
 
 ---

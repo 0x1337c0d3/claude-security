@@ -1,0 +1,23 @@
+{
+  "name": "claude-security",
+  "version": "0.1.0",
+  "description": "Security toolkit for Claude Code — autonomous security scanning (SAST, secrets, dependency audits, risk scoring) plus real-time prompt injection defense.",
+  "author": {
+    "name": "0x1337c0d3"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/0x1337c0d3/claude-security",
+  "homepage": "https://github.com/0x1337c0d3/claude-security",
+  "keywords": [
+    "security",
+    "sast",
+    "sca",
+    "secrets",
+    "prompt-injection",
+    "vulnerability",
+    "semgrep",
+    "gitleaks",
+    "owasp",
+    "compliance"
+  ]
+}

@@ -1,0 +1,247 @@
+---
+name: sentinel
+description: "Orchestrates security scanning: Semgrep SAST, gitleaks secrets scanning, and dependency audits. Consolidates findings, proposes code fixes with diffs, calculates risk scores, and creates GitHub issues. Invoke with /sentinel."
+---
+
+# Sentinel — Security Orchestrator
+
+## When to Invoke
+
+- User requests security scan, vulnerability audit, or security review
+- User says "check for secrets", "find security issues", "scan dependencies"
+- Before production deployments
+- After adding new dependencies or authentication flows
+- User invokes `/sentinel`
+
+## Modes
+
+| Mode | Trigger | What Runs |
+|------|---------|-----------|
+| **quick** | `/sentinel` or `/sentinel quick` | Semgrep + gitleaks + package audit + dependency freshness |
+| **fix** | `/sentinel fix` | Re-analyze existing report and propose fixes |
+| **verify** | `/sentinel verify` | Re-scan to confirm fixes resolved findings |
+| **score** | `/sentinel score` | Calculate and display security scorecard only |
+| **outdated** | `/sentinel outdated` | Check for outdated dependencies (major/minor/patch behind) |
+
+## Execution Protocol
+
+### Step 1 — Prerequisites Check
+
+Run `scripts/check-prereqs.sh` from the skill directory. This checks for:
+- jq (required for JSON processing)
+- Semgrep (`semgrep` binary)
+- gitleaks (`gitleaks` binary)
+- Package audit tools (`npm audit`, `pip-audit`, `composer audit`)
+- Additional ecosystem tools: `govulncheck` (Go), `bundle-audit` (Ruby), `cargo-audit`/`cargo-outdated` (Rust), `dotnet` (.NET), `mvn`/`gradle` (Java), `trivy` (containers)
+
+Report which tools are available and which are missing with installation instructions.
+If no tools are available at all, stop and provide installation guidance.
+If at least one tool is available, proceed with what's available.
+
+### Step 2 — Stack Detection
+
+Run `scripts/detect-stack.sh` in the target project directory. Outputs JSON:
+```json
+{
+  "languages": ["javascript", "typescript"],
+  "frameworks": ["express", "react"],
+  "package_manager": "npm",
+  "has_dockerfile": true,
+  "has_docker_compose": true,
+  "entry_points": ["src/index.ts", "src/app.ts"]
+}
+```
+
+### Step 3 — Complementary Scanning (Parallel)
+
+Run all available tools in parallel:
+
+**SAST (Semgrep):**
+```bash
+scripts/run-sast.sh <project-path> <language>
+```
+Uses language-specific rules from `configs/semgrep-rules/`.
+
+**Secrets (gitleaks):**
+```bash
+scripts/run-secrets.sh <project-path>
+```
+Scans entire repository for hardcoded secrets, API keys, tokens.
+
+**SCA (Package Audit):**
+```bash
+scripts/run-sca.sh <project-path> <package-manager>
+```
+Runs the appropriate audit command for the detected package manager.
+
+**Dependency Freshness (all modes):**
+```bash
+scripts/run-outdated.sh <project-path> <package-manager>
+```
+Checks for outdated dependencies. Reports packages that are MAJOR, MINOR, or PATCH versions behind. Runs alongside the vulnerability audit for a complete dependency health picture.
+
+### Step 5 — Consolidation
+
+Run `scripts/consolidate.sh` to merge all tool outputs into a single normalized JSON:
+```json
+{
+  "findings": [
+    {
+      "id": "SENTINEL-001",
+      "severity": "CRITICAL",
+      "title": "SQL Injection in UserRepository",
+      "cwe": "CWE-89",
+      "owasp": "A03:2021",
+      "source_tool": "semgrep",
+      "file": "src/repositories/user.ts",
+      "line": 45,
+      "evidence": "...",
+      "status": "confirmed"
+    }
+  ],
+  "metadata": {
+    "scan_date": "2026-03-11",
+    "mode": "quick",
+    "tools_used": ["semgrep", "gitleaks", "npm-audit"],
+    "tools_skipped": []
+  }
+}
+```
+
+### Step 6 — Risk Score Calculation
+
+Run `scripts/calculate-score.sh` on the consolidated JSON.
+
+Scoring formula (100 = perfect, 0 = critical risk):
+- Start at 100
+- Each CRITICAL finding: -15 points
+- Each HIGH finding: -8 points
+- Each MEDIUM finding: -3 points
+- Each LOW finding: -1 point
+- Minimum score: 0
+
+Display as: `Security Score: 72/100 [██████████░░░░] MEDIUM RISK`
+
+Thresholds:
+- 90-100: LOW RISK (green)
+- 70-89: MEDIUM RISK (yellow)
+- 40-69: HIGH RISK (orange)
+- 0-39: CRITICAL RISK (red)
+
+### Step 7 — Report Enrichment
+
+For EACH finding in the consolidated JSON, you MUST:
+
+1. **Classify** — Map to CWE ID and OWASP Top 10 2021 category
+2. **Explain impact** — Describe what an attacker could achieve, specific to this codebase
+3. **Propose fix** — Generate a before/after diff showing the exact code change needed
+4. **Compliance mapping** — Note which compliance frameworks this affects:
+   - SOC 2: Trust Service Criteria reference
+   - PCI-DSS: Requirement number
+   - HIPAA: Safeguard reference (if healthcare data involved)
+
+### Step 8 — Report Generation
+
+Generate the report using `templates/report.md` structure.
+Save to `reports/security-YYYY-MM-DD.md` in the project root.
+
+If a previous report exists, perform **baseline diff**:
+- NEW: findings not in previous report
+- FIXED: findings in previous report but not current
+- PERSISTENT: findings in both reports
+
+### Step 9 — User Interaction
+
+Present a summary table to the user with finding counts by severity and the security score.
+
+Then ask: **"How would you like to proceed?"**
+
+Options to offer:
+1. **Review findings** — Walk through each finding with explanation and proposed fix
+2. **Apply fixes** — Three sub-options:
+   a. One by one (approve each individually)
+   b. By severity (e.g., "Apply all CRITICAL fixes?")
+   c. Report only (no fixes applied)
+3. **Create GitHub issues** — One issue per finding using `templates/issue.md`
+4. **Generate SARIF** — Output in SARIF format for GitHub Security tab
+5. **Export compliance report** — Generate compliance-focused report
+
+### Step 10 — Fix Verification (Optional)
+
+After fixes are applied, offer to re-run the scan to verify the fixes resolved the findings.
+Compare before/after scores and show improvement.
+
+## Important Constraints
+
+- ALWAYS ask before creating GitHub issues (they notify the team)
+- ALWAYS ask before applying code changes
+- Reports may contain sensitive exploit details — warn about committing to public repos
+
+## Report Template Location
+
+Use the template at `templates/report.md` for generating security reports.
+Use the template at `templates/issue.md` for generating GitHub issues.
+
+## Installation Check
+
+If the user hasn't installed Sentinel's dependencies yet, point them to `install.sh`:
+```bash
+# From the sentinel-claude-skill directory:
+./install.sh
+```
+
+## Compliance Mapping Reference
+
+| OWASP 2021 | SOC 2 | PCI-DSS | CWE Examples |
+|------------|-------|---------|--------------|
+| A01 Broken Access Control | CC6.1, CC6.3 | 6.5.8, 7.1 | 22, 284, 285, 639 |
+| A02 Cryptographic Failures | CC6.1, CC6.7 | 3.4, 4.1, 6.5.3 | 259, 327, 328 |
+| A03 Injection | CC6.1 | 6.5.1 | 20, 74, 79, 89 |
+| A04 Insecure Design | CC3.2, CC5.2 | 6.3 | 209, 256, 501 |
+| A05 Security Misconfiguration | CC6.1, CC7.1 | 2.2, 6.5.10 | 16, 611 |
+| A06 Vulnerable Components | CC6.1 | 6.3.2 | 1035 |
+| A07 Auth Failures | CC6.1, CC6.2 | 6.5.10, 8.1 | 287, 384 |
+| A08 Data Integrity Failures | CC7.2 | 6.5.8 | 345, 502 |
+| A09 Logging Failures | CC7.2, CC7.3 | 10.1 | 117, 223, 778 |
+| A10 SSRF | CC6.1 | 6.5.9 | 918 |
+
+---
+
+## Available sub-skills
+
+| Command | Description |
+|---------|-------------|
+| `/sentinel:audit` | Deep AI reasoning on findings — attack chains, false positive analysis, IaC review |
+| `/sentinel:red-team` | Adversarial analysis from 6 attacker personas (script kiddie, insider, organized crime, nation state, hacktivist, supply chain) |
+| `/sentinel:stride` | STRIDE threat modeling — Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege |
+| `/sentinel:race-conditions` | Detect TOCTOU, double-spend, check-then-act, non-atomic operations |
+| `/sentinel:business-logic` | Find workflow bypass, negative amounts, coupon abuse, state machine manipulation, price manipulation |
+| `/sentinel:api` | OWASP API Top 10 — BOLA, mass assignment, missing rate limiting, excessive data exposure |
+| `/sentinel:attack-surface` | Map all entry points, classify by exposure level, identify shadow/unauthenticated endpoints |
+
+---
+
+## `/sentinel:audit` — Intelligence analysis command
+
+After running `/sentinel:sentinel`, the Security Auditor skill can enrich findings with deep
+reasoning that tools cannot provide.
+
+**Usage:**
+```
+/sentinel:audit                          # Analyze findings from last scan
+/sentinel:audit <path/to/consolidated.json>   # Analyze specific output file
+/sentinel:audit <file.py>                # Direct code audit, no scan needed
+/sentinel:audit <Dockerfile>             # IaC security review
+```
+
+**What it adds on top of Sentinel's tool output:**
+- Full attack chain for each SENTINEL-XXX finding
+- Exploitability rating: Trivial / Easy / Moderate / Hard / Theoretical
+- False positive analysis for Semgrep findings
+- Logic vulnerability detection (business logic flaws, IDOR, race conditions)
+- IaC deep review (Dockerfile, k8s, Terraform, GitHub Actions)
+- Complete fix code, not just diff hints
+- Adjusted risk score combining tool findings + manual analysis
+
+The Security Auditor skill lives at `skills/audit/SKILL.md` and loads reference
+files on demand to keep context lean.

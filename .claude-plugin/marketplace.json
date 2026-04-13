@@ -1,0 +1,14 @@
+{
+  "name": "claude-security",
+  "owner": {
+    "name": "0x1337c0d3"
+  },
+  "plugins": [
+    {
+      "name": "claude-security",
+      "description": "Security toolkit for Claude Code — autonomous scanning (SAST, secrets, dependency audits) plus real-time prompt injection defense.",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

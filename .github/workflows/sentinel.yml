@@ -50,7 +50,7 @@ jobs:
         run: |
           SCRIPTS_DIR="$GITHUB_WORKSPACE/skills/sentinel/scripts"
           STACK="$("$SCRIPTS_DIR/detect-stack.sh" "$GITHUB_WORKSPACE")"
-          echo "stack=$STACK" >> "$GITHUB_OUTPUT"
+          echo "stack=$(echo "$STACK" | jq -c '.')" >> "$GITHUB_OUTPUT"
           echo "languages=$(echo "$STACK" | jq -c '.languages')" >> "$GITHUB_OUTPUT"
           echo "Detected languages: $(echo "$STACK" | jq -r '.languages | join(", ")')"
 

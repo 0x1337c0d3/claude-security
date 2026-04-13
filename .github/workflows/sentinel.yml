@@ -73,7 +73,7 @@ jobs:
             [[ -z "$lang" ]] && continue
             echo "Running SAST for: $lang"
             "$SCRIPTS_DIR/run-sast.sh" "$GITHUB_WORKSPACE" "$lang" \
-              > "$SCAN_TMP/sast-${lang}.json" 2>&1 || true
+              > "$SCAN_TMP/sast-${lang}.json" || true
           done <<< "$LANGUAGES"
 
           echo "SAST files written to $SCAN_TMP"
@@ -86,7 +86,7 @@ jobs:
           SCAN_TMP="${{ steps.sast.outputs.scan_tmp }}"
 
           "$SCRIPTS_DIR/run-secrets.sh" "$GITHUB_WORKSPACE" \
-            > "$SCAN_TMP/secrets.json" 2>&1 || true
+            > "$SCAN_TMP/secrets.json" || true
 
           echo "Secrets scan complete"
 

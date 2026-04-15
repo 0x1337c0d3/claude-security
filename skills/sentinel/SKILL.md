@@ -33,13 +33,13 @@ Run `scripts/check-prereqs.sh` from the skill directory. This checks for:
 - `jq` (required for JSON processing)
 - `semgrep` — SAST scanner
 - `gitleaks` — secrets scanner
-- `codeql` — taint analysis (optional; skip gracefully if missing)
+- `codeql` (via `gh codeql`) — **required** for taint analysis; install: `gh extension install github/gh-codeql`
 - Package audit tools: `npm audit`, `pip-audit`, `composer audit`
 - Ecosystem tools: `govulncheck` (Go), `bundle-audit` (Ruby), `cargo-audit` (Rust), `dotnet` (.NET), `mvn`/`gradle` (Java), `trivy` (containers)
 
 Report which tools are available and which are missing with installation instructions.
-If no tools are available at all, stop and provide installation guidance.
-If at least one tool is available, proceed with what's available.
+**If `jq`, `semgrep`, `gitleaks`, or `codeql` are missing, stop and provide installation guidance — do not proceed without them.**
+If ecosystem-specific tools are missing, proceed with what's available.
 
 ### Phase 2 — Stack Detection
 
@@ -113,11 +113,11 @@ scripts/run-outdated.sh <project-path> <package-manager>
 ```
 Checks for outdated dependencies (MAJOR, MINOR, PATCH behind).
 
-**CodeQL Taint Analysis (if available):**
+**CodeQL Taint Analysis (required):**
 ```bash
 scripts/run-sast-codeql.sh <project-path> <language>
 ```
-Runs inter-procedural taint analysis. Exits silently with empty findings if `codeql` is not installed. Adds `taint_flow` field showing source→sink data paths for inter-file vulnerabilities.
+Runs inter-procedural taint analysis using the `security-and-quality` query suite. Auto-downloads the language pack on first use. Adds `taint_flow` field showing source→sink data paths for inter-file vulnerabilities.
 
 ### Phase 5 — AI-Driven OWASP Code Review
 

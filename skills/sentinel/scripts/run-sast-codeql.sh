@@ -32,10 +32,9 @@ if command -v codeql >/dev/null 2>&1; then
 elif command -v gh >/dev/null 2>&1 && gh codeql version >/dev/null 2>&1; then
     CODEQL_CMD="gh codeql"
 else
-    echo "Warning: codeql not installed — skipping CodeQL analysis." >&2
-    echo "Install with: gh extension install github/gh-codeql" >&2
-    echo '{"tool":"codeql","language":"none","findings":[],"summary":{"total":0,"errors":0,"skipped":true,"reason":"codeql not installed"}}'
-    exit 0
+    echo "Error: codeql is required. Install with: gh extension install github/gh-codeql" >&2
+    echo '{"tool":"codeql","language":"none","findings":[],"summary":{"total":0,"errors":1,"skipped":false,"reason":"codeql not installed"}}'
+    exit 1
 fi
 
 # --- Detect language ---

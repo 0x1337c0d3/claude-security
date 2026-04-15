@@ -173,7 +173,7 @@ check_codeql() {
     fi
 
     if [[ -z "$codeql_cmd" ]]; then
-        printf '{"available":false,"install":"gh extension install github/gh-codeql"}'
+        printf '{"available":false,"required":true,"install":"gh extension install github/gh-codeql"}'
         return
     fi
 
@@ -206,7 +206,7 @@ check_codeql() {
     done
     missing_json+="]"
 
-    printf '{"available":true,"version":"%s","cmd":"%s","packs_installed":%s,"packs_missing":%s}' \
+    printf '{"available":true,"required":true,"version":"%s","cmd":"%s","packs_installed":%s,"packs_missing":%s}' \
         "$(json_escape "$ver")" "$(json_escape "$codeql_cmd")" "$installed_json" "$missing_json"
 }
 

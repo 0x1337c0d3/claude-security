@@ -26,9 +26,14 @@ PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
 
 # --- Verify codeql is available ---
 
-if ! command -v codeql >/dev/null 2>&1; then
+# Support both standalone `codeql` and `gh codeql` extension
+if command -v codeql >/dev/null 2>&1; then
+    CODEQL_CMD="codeql"
+elif command -v gh >/dev/null 2>&1 && gh codeql version >/dev/null 2>&1; then
+    CODEQL_CMD="gh codeql"
+else
     echo "Warning: codeql not installed — skipping CodeQL analysis." >&2
-    echo "Install with: brew install codeql  OR  gh extension install github/gh-codeql" >&2
+    echo "Install with: gh extension install github/gh-codeql" >&2
     echo '{"tool":"codeql","language":"none","findings":[],"summary":{"total":0,"errors":0,"skipped":true,"reason":"codeql not installed"}}'
     exit 0
 fi
@@ -82,7 +87,7 @@ trap cleanup EXIT
 # --- Create CodeQL database ---
 
 echo "Creating CodeQL database..." >&2
-if ! codeql database create "$DB_PATH" \
+if ! $CODEQL_CMD database create "$DB_PATH" \
     --language="$CODEQL_LANG" \
     --source-root="$PROJECT_PATH" \
     --overwrite \
@@ -94,10 +99,22 @@ fi
 
 # --- Run security analysis ---
 
-QUERY_SUITE="codeql/${CODEQL_LANG}-queries:codeql-suites/${CODEQL_LANG}-security-extended.qls"
+QUERY_PACK="codeql/${CODEQL_LANG}-queries"
+QUERY_SUITE="${QUERY_PACK}:codeql-suites/${CODEQL_LANG}-security-and-quality.qls"
 
-echo "Running CodeQL security-extended analysis..." >&2
-if ! codeql analyze "$DB_PATH" \
+# --- Ensure query pack is downloaded ---
+
+if ! ls "$HOME/.codeql/packages/$QUERY_PACK" >/dev/null 2>&1; then
+    echo "Downloading CodeQL query pack: $QUERY_PACK ..." >&2
+    if ! $CODEQL_CMD pack download "$QUERY_PACK" >&2 2>&1; then
+        echo "Warning: could not download $QUERY_PACK — skipping." >&2
+        echo '{"tool":"codeql","language":"'"$CODEQL_LANG"'","findings":[],"summary":{"total":0,"errors":1,"skipped":true,"reason":"pack download failed"}}'
+        exit 0
+    fi
+fi
+
+echo "Running CodeQL security-and-quality analysis..." >&2
+if ! $CODEQL_CMD database analyze "$DB_PATH" \
     "$QUERY_SUITE" \
     --format=sarif-latest \
     --output="$SARIF_PATH" \

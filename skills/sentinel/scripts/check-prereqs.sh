@@ -162,13 +162,52 @@ check_gradle() {
 }
 
 check_codeql() {
+    local codeql_cmd=""
+    local ver=""
     if check_command codeql; then
-        local ver
+        codeql_cmd="codeql"
         ver="$(codeql version --format=terse 2>/dev/null || codeql version 2>/dev/null | head -1 || echo "unknown")"
-        printf '{"available":true,"version":"%s"}' "$(json_escape "$ver")"
-    else
-        printf '{"available":false,"install":"brew install codeql  OR  gh extension install github/gh-codeql  OR  https://github.com/github/codeql-cli-binaries/releases"}'
+    elif check_command gh && gh codeql version >/dev/null 2>&1; then
+        codeql_cmd="gh codeql"
+        ver="$(gh codeql version 2>/dev/null | head -1 || echo "unknown")"
     fi
+
+    if [[ -z "$codeql_cmd" ]]; then
+        printf '{"available":false,"install":"gh extension install github/gh-codeql"}'
+        return
+    fi
+
+    # Check which language packs are already downloaded
+    local languages=("python" "javascript" "java" "go" "csharp" "ruby" "cpp" "swift")
+    local packs_installed=()
+    local packs_missing=()
+    for lang in "${languages[@]}"; do
+        local pack="codeql/${lang}-queries"
+        if $codeql_cmd pack ls 2>/dev/null | grep -q "$pack" || \
+           ls ~/.codeql/packages/codeql/"${lang}-queries" >/dev/null 2>&1; then
+            packs_installed+=("$lang")
+        else
+            packs_missing+=("$lang")
+        fi
+    done
+
+    # Build JSON arrays
+    local installed_json="["
+    for i in "${!packs_installed[@]}"; do
+        [[ $i -gt 0 ]] && installed_json+=","
+        installed_json+="\"${packs_installed[$i]}\""
+    done
+    installed_json+="]"
+
+    local missing_json="["
+    for i in "${!packs_missing[@]}"; do
+        [[ $i -gt 0 ]] && missing_json+=","
+        missing_json+="\"${packs_missing[$i]}\""
+    done
+    missing_json+="]"
+
+    printf '{"available":true,"version":"%s","cmd":"%s","packs_installed":%s,"packs_missing":%s}' \
+        "$(json_escape "$ver")" "$(json_escape "$codeql_cmd")" "$installed_json" "$missing_json"
 }
 
 # --- Main ---

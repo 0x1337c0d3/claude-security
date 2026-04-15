@@ -15,11 +15,14 @@ on:
 
 permissions:
   contents: read
+  security-events: write   # required for CodeQL SARIF upload
 
 jobs:
   sentinel-scan:
     name: Sentinel Security Scan
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout
@@ -89,6 +92,25 @@ jobs:
             > "$SCAN_TMP/secrets.json" || true
 
           echo "Secrets scan complete"
+
+      # ── CodeQL scan ──────────────────────────────────────────────────────
+      - name: Install CodeQL extension
+        run: gh extension install github/gh-codeql 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run SAST (CodeQL)
+        id: codeql
+        run: |
+          SCRIPTS_DIR="$GITHUB_WORKSPACE/skills/sentinel/scripts"
+          SCAN_TMP="${{ steps.sast.outputs.scan_tmp }}"
+
+          "$SCRIPTS_DIR/run-sast-codeql.sh" "$GITHUB_WORKSPACE" \
+            > "$SCAN_TMP/codeql.json" || true
+
+          echo "CodeQL scan complete"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # ── Consolidate ───────────────────────────────────────────────────────
       - name: Consolidate findings

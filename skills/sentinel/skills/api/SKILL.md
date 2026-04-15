@@ -164,3 +164,14 @@ catch some injection and auth issues in API handlers; this skill adds
 authorization logic, data exposure, and rate limiting checks Sentinel misses.
 Map findings to SENTINEL-XXX findings where they overlap. API findings map to
 OWASP A01 (Broken Access Control), A04 (Insecure Design), and A05 (Misconfiguration).
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

@@ -19,9 +19,9 @@ claude-security/
 ├── skills/                   # Loaded by the plugin system
 │   ├── sentinel/             # /sentinel:* commands
 │   │   ├── SKILL.md
-│   │   ├── scripts/          # 9 shell scripts (detect, scan, score, report)
-│   │   ├── configs/semgrep-rules/  # 82 SAST rules across 8 languages
-│   │   ├── templates/        # report.md, issue.md, sarif.json
+│   │   ├── scripts/          # shell scripts (detect, scan, score, report)
+│   │   ├── configs/semgrep-rules/  # 82 custom SAST rules across 8 languages (layered on top of semgrep defaults)
+│   │   ├── templates/        # report.md
 │   │   ├── references/       # DREAD and STRIDE threat models
 │   │   ├── tests/            # Shell test suites + fixtures
 │   │   └── skills/           # Sub-skills: audit, red-team, stride, api, etc.

@@ -161,3 +161,14 @@ Attack surface mapping is the ideal **pre-scan step** before `/sentinel`:
 - Surfaces shadow/debug endpoints gitleaks won't find
 - SURF findings map to OWASP A01 (Broken Access Control) and A05 (Misconfiguration)
 - Combine with `/sentinel:api` for deep analysis of HIGH/CRITICAL endpoints
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

@@ -92,13 +92,11 @@ A security orchestrator skill that detects your tech stack, runs every applicabl
 
 ```
                             +-------------------+
-                            | Semgrep SAST      |  82 custom rules across 8 languages
+                            | Semgrep SAST      |  default rules + 82 custom rules (8 languages)
 Your Code → detect-stack →  | gitleaks Secrets  |  Full git history scan
                             | Dependency Audit  |  12 package managers
                             | Freshness Check   |  Outdated dependency detection
                             +-------------------+
-                                     ↓
-                               consolidate.sh
                                      ↓
                             calculate-score.sh
                                      ↓
@@ -257,9 +255,8 @@ jobs:
 | Step | Tool | Output |
 |------|------|--------|
 | Detect stack | `detect-stack.sh` | Languages, frameworks |
-| SAST | Semgrep + 82 custom rules | Per-language findings |
+| SAST | Semgrep (default + 82 custom rules) | Per-language findings |
 | Secrets | gitleaks | Hardcoded credentials |
-| Consolidate | `consolidate.sh` | Unified findings JSON |
 | Score | `calculate-score.sh` | Risk score 0–100 |
 | Annotate | GitHub workflow commands | PR line annotations |
 | Gate | exit 1 on CRITICAL/HIGH | Fails the CI check |

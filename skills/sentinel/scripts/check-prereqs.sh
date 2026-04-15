@@ -161,6 +161,16 @@ check_gradle() {
     fi
 }
 
+check_codeql() {
+    if check_command codeql; then
+        local ver
+        ver="$(codeql version --format=terse 2>/dev/null || codeql version 2>/dev/null | head -1 || echo "unknown")"
+        printf '{"available":true,"version":"%s"}' "$(json_escape "$ver")"
+    else
+        printf '{"available":false,"install":"brew install codeql  OR  gh extension install github/gh-codeql  OR  https://github.com/github/codeql-cli-binaries/releases"}'
+    fi
+}
+
 # --- Main ---
 
 printf '{\n'
@@ -177,5 +187,6 @@ printf '  "cargo_outdated": %s,\n' "$(check_cargo_outdated)"
 printf '  "trivy": %s,\n' "$(check_trivy)"
 printf '  "dotnet": %s,\n' "$(check_dotnet)"
 printf '  "maven": %s,\n' "$(check_maven)"
-printf '  "gradle": %s\n' "$(check_gradle)"
+printf '  "gradle": %s,\n' "$(check_gradle)"
+printf '  "codeql": %s\n' "$(check_codeql)"
 printf '}\n'

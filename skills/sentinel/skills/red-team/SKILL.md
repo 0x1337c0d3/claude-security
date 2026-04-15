@@ -136,3 +136,14 @@ All findings are theoretical: "an attacker could..." not "we confirmed...".
 Flag findings that overlap with Sentinel's confirmed findings as **corroborated**
 (higher confidence). Flag findings that require conditions Sentinel did not
 confirm as **theoretical** (medium confidence).
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

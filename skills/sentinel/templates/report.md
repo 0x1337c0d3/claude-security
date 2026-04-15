@@ -1,86 +1,123 @@
-# Security Assessment Report — {{PROJECT_NAME}}
+# Security Report — [PROJECT NAME]
 
-**Date:** {{SCAN_DATE}}
-**Mode:** {{SCAN_MODE}}
-**Stack:** {{DETECTED_STACK}}
-**Tools Used:** {{TOOLS_USED}}
-**Tools Unavailable:** {{TOOLS_SKIPPED}}
+**Date:** [SCAN DATE]
+**Skill:** [e.g. Sentinel / sentinel:stride / sentinel:red-team]
+**Stack:** [DETECTED STACK]
+**Tools Used:** [e.g. semgrep, gitleaks, codeql, npm-audit]
+**Tools Unavailable:** [any tools that were skipped and why]
+
+---
+
+## Security Inventory
+
+| Area | Status | Detail |
+|------|--------|--------|
+| Authentication | [JWT/Session/OAuth/None] | [e.g. bcrypt hashing, no MFA] |
+| Authorization | [RBAC/ABAC/None] | [coverage: fine/coarse/missing] |
+| Data Protection | [Yes/Partial/No] | [encryption at rest/in transit] |
+| Secrets Management | [Env vars/Hardcoded/Secrets manager] | — |
+| HTTPS | [Enforced/Not enforced] | — |
+| Security Headers | [Present/Partial/Missing] | [list missing headers] |
+| Rate Limiting | [Yes/No] | — |
 
 ---
 
 ## Security Scorecard
 
-**Score: {{SCORE}}/100 — {{RISK_LEVEL}}**
+**Score: [SCORE]/100 — [RISK LEVEL]**
 
-{{SCORE_BAR}}
+`[score bar, e.g. ██████████░░░░]`
 
 | Severity | Count | Points Deducted |
 |----------|-------|-----------------|
-| CRITICAL | {{CRITICAL_COUNT}} | -{{CRITICAL_DEDUCTION}} |
-| HIGH | {{HIGH_COUNT}} | -{{HIGH_DEDUCTION}} |
-| MEDIUM | {{MEDIUM_COUNT}} | -{{MEDIUM_DEDUCTION}} |
-| LOW | {{LOW_COUNT}} | -{{LOW_DEDUCTION}} |
+| CRITICAL | [N] | −[N×15] |
+| HIGH | [N] | −[N×8] |
+| MEDIUM | [N] | −[N×3] |
+| LOW | [N] | −[N×1] |
 
-{{#if BASELINE_DIFF}}
-## Changes Since Last Scan ({{PREVIOUS_DATE}})
-
+<!-- If a previous report exists, include this section -->
+<!-- ## Changes Since Last Scan ([PREVIOUS DATE])
 | Status | Count |
 |--------|-------|
-| New | {{NEW_COUNT}} |
-| Fixed | {{FIXED_COUNT}} |
-| Persistent | {{PERSISTENT_COUNT}} |
+| New | [N] |
+| Fixed | [N] |
+| Persistent | [N] |
+**Score Change:** [+N / −N] -->
 
-**Score Change:** {{SCORE_DELTA}}
-{{/if}}
+---
+
+## Cross-Validation Summary
+
+<!-- Omit this section for sub-skills that don't run multiple tools -->
+
+| Finding | AI | Semgrep | CodeQL | Confidence | Status |
+|---------|----|---------|--------|------------|--------|
+| [description file:line] | ✅/❌ | ✅/❌ | ✅/❌ | All 3 / 2 tools / AI only / ... | CONFIRMED/NEW |
 
 ---
 
 ## Findings
 
-{{#each FINDINGS}}
-### [{{SEVERITY}}] {{TITLE}}
+<!-- One section per finding, sorted CRITICAL → HIGH → MEDIUM → LOW -->
 
-- **ID:** {{ID}}
-- **File:** {{FILE}}:{{LINE}}
-- **CWE:** {{CWE}}
-- **OWASP:** {{OWASP}}
-- **Tool:** {{SOURCE_TOOL}}
-- **Status:** {{STATUS}}
-{{#if BASELINE_STATUS}}- **Baseline:** {{BASELINE_STATUS}}{{/if}}
+### [[SEVERITY]] [TITLE]
+
+- **ID:** [FINDING-ID] — e.g. SENTINEL-001, STRIDE-SPOOF-001, RT-SK-001
+- **File:** [file/path.ext]:[line]
+- **CWE:** [CWE-XX]
+- **OWASP:** [A0X:2021]
+- **Source:** [semgrep / codeql / gitleaks / ai / multiple]
+- **Status:** [confirmed / ai-only / tool-only]
+
+<!-- For CodeQL taint findings, include: -->
+<!-- **Taint Flow:** `source/file.ext:10 → handler.ext:45 → db/query.ext:89` -->
 
 #### Description
 
-{{DESCRIPTION}}
+[What the vulnerability is and why it matters in the context of this codebase.]
 
 #### Impact
 
-{{IMPACT}}
+[What an attacker could achieve if this is exploited — be specific to this codebase.]
 
-{{#if POC}}
-#### Proof of Concept
+#### Evidence
 
 ```
-{{POC}}
+[code snippet or grep output confirming the issue]
 ```
-{{/if}}
 
 #### Proposed Fix
 
 ```diff
-{{FIX_DIFF}}
+- [vulnerable code]
++ [safe replacement]
 ```
 
-#### Compliance Impact
+#### Compliance
 
-{{COMPLIANCE_MAPPING}}
+[SOC 2 Trust Service Criteria / PCI-DSS requirement / HIPAA safeguard — only include relevant frameworks]
 
 ---
-{{/each}}
+
+## False Positives
+
+[List any tool findings dismissed after manual review, with reasoning.]
+
+| Finding | Tool | Reason Dismissed |
+|---------|------|-----------------|
+| [description] | [semgrep/codeql] | [e.g. pattern in test file, ORM protects against injection] |
+
+---
 
 ## Recommendations
 
-{{RECOMMENDATIONS}}
+[3–5 highest-priority actions. Include specific commands where applicable.]
+
+1. **[Critical/High priority action]** — [specific guidance]
+2. ...
+
+---
 
 ## Appendix: Tool Versions
 
-{{TOOL_VERSIONS}}
+[Output of `semgrep --version`, `gitleaks version`, `codeql version`, etc.]

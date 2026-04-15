@@ -176,3 +176,14 @@ Business logic findings are by definition missed by Sentinel's SAST scanner.
 They complement the Sentinel report as `BIZ-XXX` entries. Map to OWASP A04:2021.
 These findings are the highest-value output of the audit layer since they
 represent vulnerabilities tools cannot catch.
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

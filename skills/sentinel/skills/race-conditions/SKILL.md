@@ -148,3 +148,14 @@ Race condition findings complement Sentinel's SAST scan. Map findings to the
 Sentinel consolidated report as `RACE-XXX` entries. Race conditions often
 correspond to OWASP A04:2021 (Insecure Design) or A07:2021 (Auth Failures)
 when they affect authentication or financial flows.
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

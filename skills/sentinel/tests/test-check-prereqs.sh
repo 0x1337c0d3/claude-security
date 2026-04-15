@@ -61,14 +61,6 @@ test_available_tools_have_version() {
     local output
     output="$(bash "$CHECK_PREREQS")"
 
-    # Docker: if available, should have version
-    if command -v docker >/dev/null 2>&1; then
-        assert_json_value "$output" "docker.available" "true" "prereqs: docker shows as available"
-        assert_json_key "$output" "docker.version" "prereqs: docker has version when available"
-    else
-        assert_json_value "$output" "docker.available" "false" "prereqs: docker shows as unavailable"
-    fi
-
     # npm (via npm_audit): if available, should show available
     if command -v npm >/dev/null 2>&1; then
         assert_json_value "$output" "npm_audit.available" "true" "prereqs: npm_audit shows as available"

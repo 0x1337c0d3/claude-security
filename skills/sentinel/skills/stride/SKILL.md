@@ -200,3 +200,14 @@ If Sentinel has run recently (check for `reports/security-*.md`):
 | HIGH | SQLi, stored XSS, IDOR on sensitive data, no rate limit on auth |
 | MEDIUM | Reflected XSS, log gaps, excessive data exposure, ReDoS on public input |
 | LOW | Missing security headers, verbose errors, minor info disclosure |
+
+
+---
+
+## Report Format
+
+Format your final output following the standard Sentinel report structure defined in
+`${CLAUDE_SKILL_DIR}/../../templates/report.md`. Use your skill's domain-specific
+finding IDs (e.g. `STRIDE-SPOOF-001`, `RT-SK-001`, `API-001`) in the Finding ID column.
+Include the Security Scorecard and Findings sections as a minimum. Omit the
+Cross-Validation Summary section if you ran only AI analysis (no tool comparison).

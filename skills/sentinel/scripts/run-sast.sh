@@ -50,6 +50,8 @@ for candidate in "$RULES_DIR/${LANGUAGE}.yaml" "$RULES_DIR/${LANGUAGE}.yml"; do
     fi
 done
 
+SEMGREP_ARGS+=(--config auto)
+
 if [[ -n "$RULE_FILE" ]]; then
     echo "Using custom rules: $RULE_FILE" >&2
     SEMGREP_ARGS+=(--config "$RULE_FILE")
@@ -63,8 +65,7 @@ if [[ -n "$RULE_FILE" ]]; then
         fi
     done
 else
-    echo "No custom rules for '$LANGUAGE', using semgrep auto config." >&2
-    SEMGREP_ARGS+=(--config auto)
+    echo "No custom rules for '$LANGUAGE', using semgrep auto config only." >&2
 fi
 
 # --- Run semgrep ---

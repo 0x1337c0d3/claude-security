@@ -334,11 +334,15 @@ def main() -> None:
     # Claude Code uses "tool_response", not "tool_result"
     tool_result = input_data.get("tool_response", input_data.get("tool_result", None))
 
-    # Skip scanning files that are part of the defender itself (avoid self-referential false positives)
+    # Skip scanning files that are part of this plugin (avoid false positives on documentation/examples)
     if tool_name == "Read":
         file_path = tool_input.get("file_path", "")
-        script_dir = str(Path(__file__).parent.parent.parent)  # prompt-injection-defender root
-        if file_path.startswith(script_dir):
+        # Plugin root: CLAUDE_PLUGIN_ROOT env var, or compute from script location
+        # Script is at: <plugin-root>/skills/prompt-injection-defender/hooks/defender-python/
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or str(
+            Path(__file__).parent.parent.parent.parent.parent
+        )
+        if file_path.startswith(plugin_root):
             sys.exit(0)
 
     # Tools to monitor for prompt injection

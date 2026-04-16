@@ -19,8 +19,12 @@ claude-security/
 ├── skills/                   # Loaded by the plugin system
 │   ├── sentinel/             # /sentinel:* commands
 │   │   ├── SKILL.md
-│   │   ├── scripts/          # shell scripts (detect, scan, score, report)
-│   │   ├── configs/semgrep-rules/  # 82 custom SAST rules across 8 languages (layered on top of semgrep defaults)
+│   │   ├── scripts/
+│   │   │   ├── pre-commit.sh     # git pre-commit hook (staged-files SAST + secrets scan)
+│   │   │   ├── detect-stack.sh   # detects languages, frameworks, package managers
+│   │   │   ├── run-sast.sh       # runs Semgrep (auto + custom rules) for one language
+│   │   │   └── consolidate.sh    # merges tool outputs, deduplicates, assigns SENTINEL-XXX IDs
+│   │   ├── configs/semgrep-rules/  # custom SAST rules (8 languages) — layered on top of semgrep auto
 │   │   ├── templates/        # report.md
 │   │   ├── references/       # DREAD and STRIDE threat models
 │   │   ├── tests/            # Shell test suites + fixtures
@@ -33,9 +37,10 @@ claude-security/
 │       └── docs/             # README, INSTALLATION.md, screenshots
 ├── hooks/
 │   └── hooks.json            # Registers PostToolUse defender hook for the plugin
-├── commands/                 # /install and /prime commands
+├── commands/                 # slash commands
 │   ├── install.md
-│   └── prime.md
+│   ├── prime.md
+│   └── install-git-hook.md   # /install-git-hook — installs pre-commit hook (local or --global)
 └── .claude/                  # Local dev config (not distributed)
     ├── hooks/
     │   ├── pre_tool_use.py   # Safety hook: blocks dangerous rm / .env access

@@ -88,22 +88,24 @@ Detection is pattern-based — no API calls, no cost, deterministic. Edit `patte
 
 ## Sentinel
 
-A security orchestrator skill that detects your tech stack, runs every applicable scanner in parallel, consolidates findings, calculates a risk score, proposes fixes, and optionally files GitHub issues — without leaving your editor.
+A security orchestrator skill that indexes your codebase, runs every applicable scanner in parallel, cross-validates findings across tools, calculates a risk score, and produces prioritised remediation reports — without leaving your editor.
 
 ```
-                            +-------------------+
-                            | Semgrep SAST      |  default rules + 82 custom rules (8 languages)
-Your Code → detect-stack →  | gitleaks Secrets  |  Full git history scan
-                            | Dependency Audit  |  12 package managers
-                            | Freshness Check   |  Outdated dependency detection
-                            +-------------------+
-                                     ↓
-                            calculate-score.sh
-                                     ↓
-                   +-----------------+-----------------+
-                   |                 |                 |
-             Risk Score        Fix Proposals     GitHub Issues
-              (0–100)          (ready diffs)     (per finding)
+                    Phase 1 (AI)          Phase 2 (SAST)        Phase 2b (Taint)
+                  ┌─────────────┐       ┌──────────────────┐   ┌──────────────────┐
+                  │ AiDex MCP   │       │ Semgrep          │   │ CodeQL           │
+Your Code ──────▶ │ semantic    │  ───▶ │ auto ruleset     │   │ all languages    │
+                  │ analysis    │  ───▶ │ + custom rules   │   │ security-extended│
+                  │ OWASP Top10 │       │ (8 languages)    │   │ taint analysis   │
+                  └─────────────┘       └──────────────────┘   └──────────────────┘
+                         │                      │                       │
+                         └──────────────────────┴───────────────────────┘
+                                                ↓
+                                    Phase 3: Cross-Validation
+                                  (confirmed / tool-specific /
+                                   false-positive analysis)
+                                                ↓
+                                    Risk Score (0–100) + Report
 ```
 
 ### Quick Start
@@ -116,15 +118,24 @@ brew install semgrep gitleaks jq
 /sentinel
 ```
 
+### Phases
+
+| Phase | What Runs |
+|-------|-----------|
+| **1 — AI Analysis** | AiDex semantic index + OWASP Top 10 code review (runs in parallel with phases 2 & 2b) |
+| **2 — Semgrep SAST** | `--config=auto` community rules + custom rules for all 8 languages (runs in parallel) |
+| **2b — CodeQL Taint** | Security-extended taint analysis for **every** language detected in the project (runs in parallel) |
+| **3 — Cross-Validation** | Deduplication, confidence tiers, false-positive analysis, consolidated report |
+| **4 — Risk Score** | 0–100 score with penalty breakdown |
+
 ### Modes
 
 | Command | What Runs |
 |---------|-----------|
-| `/sentinel` | Full scan — SAST + secrets + dependency audit + freshness |
-| `/sentinel fix` | Re-analyze findings and generate before/after fix diffs |
-| `/sentinel verify` | Re-scan to confirm fixes resolved findings |
-| `/sentinel score` | Risk scorecard only, no full scan |
-| `/sentinel outdated` | Outdated dependency check only |
+| `/sentinel` | Full scan — all phases |
+| `/sentinel --skip-semgrep` | Skip Semgrep (phases 1 + 2b + 3) |
+| `/sentinel --skip-codeql` | Skip CodeQL (phases 1 + 2 + 3) |
+| `/sentinel --skip-crossval` | Skip cross-validation (phases 1 + 2 + 2b only) |
 | `/sentinel:audit` | Deep intelligence layer — attack chains, logic vulns, IaC review |
 
 ### Security Score
@@ -138,25 +149,9 @@ MEDIUM   finding: −3 pts    |  40–69:  HIGH RISK
 LOW      finding: −1 pt     |   0–39:  CRITICAL RISK
 ```
 
-### Intelligence Layer
-
-Run Sentinel's scanner, then layer on the Security Auditor for reasoning tools can't provide:
-
-```
-/sentinel          # Step 1: run the scanners
-/sentinel:audit    # Step 2: attack chain analysis, false positive review, IaC audit
-```
-
-Or use the auditor standalone on any file:
-
-```
-/sentinel:audit src/auth.py    # direct code audit
-/sentinel:audit Dockerfile     # IaC security review
-```
-
 ### Supported Ecosystems
 
-Node.js, Python, PHP, Go, Ruby, Rust, Java, C# — auto-detected from lock files and config. 12 package managers supported for dependency auditing.
+Node.js · Python · PHP · Go · Ruby · Rust · Java · C# · Swift · C/C++ — auto-detected from file extensions and manifest files. CodeQL runs for every language found in the project, not just the dominant one.
 
 ---
 
@@ -180,12 +175,13 @@ No blocking findings?    → commit proceeds (exit 0)
 From inside Claude Code, run:
 
 ```
-/install-git-hook
+/install-git-hook             # install into a single repo
+/install-git-hook --global    # install for ALL repos on your machine (via git core.hooksPath)
 ```
 
-Claude will ask for your target project path, resolve the Sentinel install location, and write `.git/hooks/pre-commit` automatically.
+Claude will ask for the target path (local mode) or confirm the global hooks directory, resolve the Sentinel install location, and write the hook automatically.
 
-Or install manually:
+Or install manually into one repo:
 
 ```bash
 cat > /path/to/your-project/.git/hooks/pre-commit << 'EOF'
@@ -194,6 +190,19 @@ export SENTINEL_DIR="/absolute/path/to/claude-security/skills/sentinel"
 exec "$SENTINEL_DIR/scripts/pre-commit.sh" "$@"
 EOF
 chmod +x /path/to/your-project/.git/hooks/pre-commit
+```
+
+Or install globally (all repos):
+
+```bash
+mkdir -p ~/.config/sentinel/hooks
+cat > ~/.config/sentinel/hooks/pre-commit << 'EOF'
+#!/usr/bin/env bash
+export SENTINEL_DIR="/absolute/path/to/claude-security/skills/sentinel"
+exec "$SENTINEL_DIR/scripts/pre-commit.sh" "$@"
+EOF
+chmod +x ~/.config/sentinel/hooks/pre-commit
+git config --global core.hooksPath ~/.config/sentinel/hooks
 ```
 
 ### Example output
@@ -268,22 +277,25 @@ jobs:
 ```
 claude-security/
 ├── skills/
-│   ├── sentinel/                   # /claude-security:sentinel skill
-│   │   └── scripts/
-│   │       └── pre-commit.sh       # Git pre-commit hook (staged-files scan)
-│   └── prompt-injection-defender/  # patterns + hook implementation
+│   ├── sentinel/                       # /claude-security:sentinel skill
+│   │   ├── SKILL.md                    # 6-phase audit workflow
+│   │   ├── scripts/
+│   │   │   ├── pre-commit.sh           # git hook: SAST + secrets on staged files
+│   │   │   ├── detect-stack.sh         # language/framework/package-manager detection
+│   │   │   ├── run-sast.sh             # Semgrep runner (auto + custom rules layered)
+│   │   │   └── consolidate.sh          # merge tool outputs, assign SENTINEL-XXX IDs
+│   │   ├── configs/semgrep-rules/      # custom rules (8 languages) on top of semgrep auto
+│   │   └── skills/                     # sub-skills: audit, red-team, stride, api, etc.
+│   └── prompt-injection-defender/      # patterns + hook implementation
 ├── hooks/
-│   └── hooks.json                  # Registers defender hook when plugin is installed
+│   └── hooks.json                      # Registers defender hook when plugin is installed
 ├── commands/
-│   └── install-git-hook.md         # /install-git-hook slash command
+│   ├── install-git-hook.md             # /install-git-hook (local or --global)
+│   ├── install.md
+│   └── prime.md
 └── .github/
-│   └── workflows/
-│       └── sentinel.yml            # CI workflow (push/PR + reusable workflow_call)
-└── .claude/                        # Local dev config — gitignored, not distributed
-    ├── hooks/
-    │   ├── pre_tool_use.py         # Blocks dangerous rm and .env access
-    │   └── post_tool_use.py        # Logs tool use to .claude-logs/
-    └── settings.json               # Wires up hooks — copy from CLAUDE.md to set up locally
+    └── workflows/
+        └── sentinel.yml                # CI workflow (push/PR + reusable workflow_call)
 ```
 
 ---

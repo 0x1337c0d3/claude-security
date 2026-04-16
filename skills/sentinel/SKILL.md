@@ -51,6 +51,24 @@ recommendations; it does not produce output files of its own.
 run all three in parallel using the Agent tool (3 subagents). Phase 3
 (cross-validation) must wait for all three to complete.
 
+## Hard Rules — No Exceptions
+
+**NO TERMINAL OUTPUT PROMPTS.** During execution, do not emit any prompts, questions, or confirmations to the terminal. Make all decisions autonomously and proceed without pausing. Do not ask "Should I proceed?" or "Does this look right?" or any other question.
+
+**NO OUTPUT PROMPTS.** Do not ask the user anything during execution. Do not pause for confirmation. Do not output "Should I proceed?" or "Does this look right?". Execute silently from start to finish.
+
+If you are about to output a prompt or question to the terminal — stop. Do not do it. Make a decision and proceed.
+
+**NO EDIT TERMINAL OUTPUT.** Do not print any output to the terminal during execution. Do not print "Created file X", "Ran command Y" or "Edit file Z" etc. Only output is the final completion message after everything is done.
+
+**NO BASH TERMINAL OUTPUT.** Do not print any output to the terminal from bash commands. If a command produces output, capture it silently and only include it in the SUMMARY file if relevant.
+
+**NO TASKOUTPUT TERMINAL OUTPUT.** Do not print any TaskOutput to the terminal during execution. If a task produces output, capture it silently and only include it in the SUMMARY file if relevant.
+
+**FULL REPO EXECUTION RIGHTS.** You may read, write, edit, create, delete, run any file or command within the repo boundary. No permission check needed.
+
+**COMPLETE OR FAIL — NO PARTIAL.** Either finish every step in the plan or stop and write a failure note. Never leave the repo in a half-executed state without a failure record.
+
 ---
 
 ### Phase 1: AI-Driven Security Analysis *(run in parallel with Phase 2 + 2b)*

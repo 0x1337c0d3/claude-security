@@ -18,7 +18,6 @@ This repo ships two security tools that work together inside Claude Code:
 | **Prompt Injection Defender** | PostToolUse hook | Scans every tool output in real-time for hidden injection attacks |
 | **Sentinel** | Skill | Full-stack security scanner — SAST, secrets, dependency audits, scoring |
 | **Pre-commit Hook** | git hook | Blocks commits with CRITICAL/HIGH findings before they land |
-| **GitHub Actions Workflow** | CI | Runs the full Sentinel scan on every push and pull request |
 | **Safety Hook** | PreToolUse hook | Blocks dangerous `rm -rf` commands and `.env` file access |
 | **Tool Logger** | PostToolUse hook | Logs all tool calls to `.claude-logs/` for auditing |
 
@@ -225,52 +224,6 @@ git config --global core.hooksPath ~/.config/sentinel/hooks
 ```bash
 SENTINEL_SKIP=1 git commit -m "hotfix: deploy now, fix security after"
 ```
-
----
-
-## GitHub Actions
-
-The included workflow runs the full Sentinel pipeline on every push and pull request, fails the check on CRITICAL/HIGH findings, and annotates changed lines directly in the PR diff.
-
-### Self-hosted (this repo scans itself)
-
-The workflow is already wired up at `.github/workflows/sentinel.yml`.
-
-### Use it in your own repo
-
-Call it as a reusable workflow with one step:
-
-```yaml
-# .github/workflows/security.yml in your project
-jobs:
-  security:
-    uses: 0x1337c0d3/claude-security/.github/workflows/sentinel.yml@main
-```
-
-Or copy `.github/workflows/sentinel.yml` into your repo directly — it has no dependencies outside the `skills/sentinel/scripts/` directory.
-
-### Configurable fail threshold
-
-```yaml
-jobs:
-  security:
-    uses: 0x1337c0d3/claude-security/.github/workflows/sentinel.yml@main
-    with:
-      fail_on_severity: CRITICAL   # default: HIGH
-```
-
-### What runs in CI
-
-| Step | Tool | Output |
-|------|------|--------|
-| Detect stack | `detect-stack.sh` | Languages, frameworks |
-| SAST | Semgrep (default + 82 custom rules) | Per-language findings |
-| Secrets | gitleaks | Hardcoded credentials |
-| Score | `calculate-score.sh` | Risk score 0–100 |
-| Annotate | GitHub workflow commands | PR line annotations |
-| Gate | exit 1 on CRITICAL/HIGH | Fails the CI check |
-
----
 
 ## Project Structure
 

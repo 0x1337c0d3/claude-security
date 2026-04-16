@@ -109,6 +109,20 @@ rules:
       impact: CRITICAL
       category: security
 
+  - id: url-allowlist-missing-scheme-check
+    patterns:
+      - pattern: new URL($X).hostname
+      - pattern-not: new URL($X).protocol
+    message: "URL allowlist validates hostname but not protocol/scheme — HTTP downgrade possible"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      cwe: CWE-184
+      owasp: "A03:2021 Injection"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+
   # ---------------------------------------------------------------------------
   # Command Injection
   # ---------------------------------------------------------------------------

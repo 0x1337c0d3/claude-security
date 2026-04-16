@@ -71,20 +71,53 @@ cd "$TARGET"
 
 #### Step 1.2: Security Inventory
 
-Before reading source files, build a quick inventory:
+Use **AiDex MCP** as the primary tool for project exploration — it understands
+code structure (methods, types, properties) and is far faster than filesystem
+traversal for large codebases.
+
+**2a. Initialise the index**
+
+Call `aidex_session({ path: TARGET })`. If `.aidex/` does not yet exist, call
+`aidex_init({ path: TARGET })` first (no need to ask — just do it). The session
+call detects externally-modified files and auto-reindexes them.
+
+**2b. Project overview**
+
+```
+aidex_summary({ path: TARGET })   → entry points, main types, detected languages
+aidex_tree({ path: TARGET, depth: 3 })  → directory structure at a glance
+```
+
+Use the summary's entry points and language list to focus the audit on the most
+relevant files and skip generated/vendored code.
+
+**2c. Security-surface signatures**
+
+Retrieve method/type signatures for all security-critical file groups — no full
+file reads needed at this stage:
+
+```
+aidex_signatures({ path: TARGET, pattern: "**/*auth*"       })  → auth layer
+aidex_signatures({ path: TARGET, pattern: "**/*route*"      })  → route handlers
+aidex_signatures({ path: TARGET, pattern: "**/*controller*" })  → controllers
+aidex_signatures({ path: TARGET, pattern: "**/*middleware*" })  → middleware
+aidex_signatures({ path: TARGET, pattern: "**/*handler*"    })  → request handlers
+aidex_signatures({ path: TARGET, pattern: "**/*model*"      })  → data models
+aidex_signatures({ path: TARGET, pattern: "**/*db*"         })  → database layer
+aidex_signatures({ path: TARGET, pattern: "**/*crypto*"     })  → crypto utilities
+```
+
+From these signatures, identify which specific files and methods require a full
+`Read` for deeper inspection.
+
+**2d. Fallback: manifest-based tech stack detection**
+
+For details not captured by AiDex (package versions, lock file presence), use
+targeted reads rather than broad finds:
 
 ```bash
-# Identify tech stack
-find . -name "package.json" -o -name "requirements.txt" -o -name "go.mod" \
-       -o -name "pom.xml" -o -name "*.csproj" -o -name "Gemfile" \
-  | grep -v node_modules | grep -v .git | head -20
-
 # Count lines of code (rough)
 git ls-files 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 || true
-
-# List entry points (main files, routes, handlers)
-find . \( -name "main.*" -o -name "app.*" -o -name "server.*" -o -name "routes.*" \) \
-  | grep -v node_modules | grep -v .git | head -20
 ```
 
 Produce a Security Inventory:
@@ -116,7 +149,92 @@ Produce a Security Inventory:
 
 #### Step 1.3: Automated Pattern Scanning
 
-Run these bash checks to gather evidence before deeper code reading:
+Use **AiDex semantic queries** as the primary scanner — they match against
+parsed identifiers (method names, types, properties) and are therefore more
+precise than regex grep. Follow up with bash-only tools for things AiDex cannot
+cover (dependency CVEs, secret scanners, raw string literals).
+
+**3a. Semantic queries via AiDex**
+
+Run all queries against the indexed target; each returns file locations and line
+numbers for the matching identifier:
+
+```
+# Injection-prone APIs
+aidex_query({ path: TARGET, term: "eval",         mode: "contains" })
+aidex_query({ path: TARGET, term: "exec",         mode: "contains" })
+aidex_query({ path: TARGET, term: "system",       mode: "contains" })
+aidex_query({ path: TARGET, term: "shell",        mode: "contains" })
+aidex_query({ path: TARGET, term: "popen",        mode: "contains" })
+aidex_query({ path: TARGET, term: "deserializ",   mode: "contains" })
+aidex_query({ path: TARGET, term: "unpickle",     mode: "contains" })
+aidex_query({ path: TARGET, term: "fromXml",      mode: "contains" })
+
+# Database / query construction
+aidex_query({ path: TARGET, term: "query",        mode: "contains" })
+aidex_query({ path: TARGET, term: "execute",      mode: "contains" })
+aidex_query({ path: TARGET, term: "rawQuery",     mode: "contains" })
+aidex_query({ path: TARGET, term: "format",       mode: "contains", type_filter: ["method"] })
+
+# Authentication & secrets
+aidex_query({ path: TARGET, term: "password",     mode: "contains" })
+aidex_query({ path: TARGET, term: "secret",       mode: "contains" })
+aidex_query({ path: TARGET, term: "token",        mode: "contains" })
+aidex_query({ path: TARGET, term: "apiKey",       mode: "contains" })
+aidex_query({ path: TARGET, term: "credential",   mode: "contains" })
+aidex_query({ path: TARGET, term: "hash",         mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "verify",       mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "jwt",          mode: "contains" })
+aidex_query({ path: TARGET, term: "session",      mode: "contains" })
+
+# Cryptography
+aidex_query({ path: TARGET, term: "md5",          mode: "contains" })
+aidex_query({ path: TARGET, term: "sha1",         mode: "contains" })
+aidex_query({ path: TARGET, term: "encrypt",      mode: "contains" })
+aidex_query({ path: TARGET, term: "decrypt",      mode: "contains" })
+aidex_query({ path: TARGET, term: "random",       mode: "contains", type_filter: ["method"] })
+
+# Network / SSRF surface
+aidex_query({ path: TARGET, term: "fetch",        mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "request",      mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "http",         mode: "contains" })
+aidex_query({ path: TARGET, term: "url",          mode: "contains" })
+aidex_query({ path: TARGET, term: "redirect",     mode: "contains" })
+
+# Authorization / access control
+aidex_query({ path: TARGET, term: "permission",   mode: "contains" })
+aidex_query({ path: TARGET, term: "role",         mode: "contains" })
+aidex_query({ path: TARGET, term: "isAdmin",      mode: "contains" })
+aidex_query({ path: TARGET, term: "authorize",    mode: "contains" })
+aidex_query({ path: TARGET, term: "middleware",   mode: "contains" })
+
+# File system / path traversal
+aidex_query({ path: TARGET, term: "readFile",     mode: "contains" })
+aidex_query({ path: TARGET, term: "writeFile",    mode: "contains" })
+aidex_query({ path: TARGET, term: "path",         mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "upload",       mode: "contains" })
+
+# Output / rendering (XSS)
+aidex_query({ path: TARGET, term: "render",       mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "innerHTML",    mode: "contains" })
+aidex_query({ path: TARGET, term: "dangerously",  mode: "contains" })
+aidex_query({ path: TARGET, term: "sanitize",     mode: "contains" })
+aidex_query({ path: TARGET, term: "escape",       mode: "contains" })
+
+# Logging (sensitive data in logs)
+aidex_query({ path: TARGET, term: "log",          mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "debug",        mode: "contains", type_filter: ["method"] })
+aidex_query({ path: TARGET, term: "print",        mode: "contains", type_filter: ["method"] })
+```
+
+For each hit, note the file and line number. Use `aidex_signature` on the
+containing file to understand the method's full context before deciding whether
+to `Read` the implementation.
+
+**3b. Dependency and secrets scanners (bash)**
+
+These operate on package metadata and raw file content — areas outside AiDex's
+identifier index:
 
 ```bash
 # Dependency vulnerabilities
@@ -124,38 +242,15 @@ npm audit --audit-level=high 2>/dev/null || true
 pip-audit 2>/dev/null || safety check 2>/dev/null || true
 go mod verify 2>/dev/null || true
 
-# Hardcoded secrets / credentials
-grep -rn \
-  -E "(password|secret|api_key|token|auth|passwd|credential)\s*=\s*['\"][^'\"]{6,}['\"]" \
-  --include="*.py" --include="*.js" --include="*.ts" --include="*.go" \
-  --include="*.java" --include="*.cs" --include="*.rb" --include="*.php" \
-  --include="*.yaml" --include="*.yml" --include="*.json" \
-  --exclude-dir=node_modules --exclude-dir=.git \
-  . 2>/dev/null | head -40 || true
-
-# eval / exec usage
-grep -rn -E "eval\(|exec\(|shell_exec\(|system\(" \
-  --include="*.py" --include="*.js" --include="*.ts" --include="*.php" \
-  --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null | head -20 || true
-
-# SQL injection patterns
-grep -rn -E "(SELECT|INSERT|UPDATE|DELETE).*[\+\$\{].*" \
-  --include="*.py" --include="*.js" --include="*.ts" --include="*.php" \
-  --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null | head -20 || true
-
-# Hardcoded IPs / internal URLs
-grep -rn -E "https?://[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" \
-  --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null | head -20 || true
-
-# Private key material
+# Private key material (raw string, not an identifier)
 grep -rn -E "BEGIN (RSA|EC|DSA|OPENSSH|PGP) PRIVATE KEY" \
   --exclude-dir=.git . 2>/dev/null | head -10 || true
 
-# Additional secret / leak scanners (run if available)
+# Secret / credential scanners
 gitleaks detect --source=. 2>/dev/null || true
 trufflehog filesystem . --no-update 2>/dev/null || true
 
-# Language-specific quick SAST
+# Language-specific SAST
 bandit -r . -ll 2>/dev/null || true           # Python
 eslint --plugin security . 2>/dev/null || true # JS/TS (if configured)
 snyk test 2>/dev/null || true                  # all ecosystems
@@ -163,8 +258,23 @@ snyk test 2>/dev/null || true                  # all ecosystems
 
 #### Step 1.4: OWASP Top 10 Code Review
 
-Read source files (prioritise routes, controllers, auth, DB access layers) and
-assess each OWASP category. For each finding, record:
+Use the AiDex query results from Step 1.3 and the signatures from Step 1.2 to
+identify *which* files and methods to read. **Only call `Read` on files that
+contain suspicious identifiers** — do not bulk-read entire directories.
+
+Prioritised reading order:
+1. Files with hits from the injection/exec/query/deserializ queries
+2. Auth layer files (`*auth*`, `*login*`, `*session*`, `*jwt*`)
+3. Route/controller files handling user input
+4. Database access layer
+5. Files with hardcoded secret-adjacent identifiers (password, apiKey, secret)
+
+For each file flagged by AiDex, use `aidex_signature` first to confirm the
+method exists and understand its signature, then `Read` only the relevant method
+body and its immediate callsite context.
+
+Assess each OWASP category based on what the code *actually does* (as revealed
+by the semantic index), not just filename heuristics. For each finding, record:
 
 - **ID**: `VULN-NNN` (sequential, zero-padded to 3 digits)
 - **Title**: short description
@@ -349,7 +459,19 @@ fi
 
 ```bash
 echo "[appsec] Running Semgrep SAST scan..."
-semgrep scan --json --config=auto --output="${SEMGREP_JSON}" . || true
+SKILL_DIR="${CLAUDE_SKILL_DIR:-$(dirname "$0")}"
+CUSTOM_RULES_DIR="${SKILL_DIR}/configs/semgrep-rules"
+
+# Run with both auto (default ruleset) and custom rules layered on top.
+# Use --config twice: once for the community rules, once for the local rules directory.
+if [[ -d "${CUSTOM_RULES_DIR}" ]] && ls "${CUSTOM_RULES_DIR}"/*.yaml >/dev/null 2>&1; then
+  semgrep scan --json \
+    --config=auto \
+    --config="${CUSTOM_RULES_DIR}" \
+    --output="${SEMGREP_JSON}" . || true
+else
+  semgrep scan --json --config=auto --output="${SEMGREP_JSON}" . || true
+fi
 # Exit code 1 from semgrep means findings were detected — not a fatal error
 ```
 
@@ -423,9 +545,11 @@ else
 fi
 ```
 
-#### Step 2b.2: Detect Language
+#### Step 2b.2: Detect All Languages
 
-Map the project's primary language to a CodeQL language identifier:
+Map every supported language present in the project to CodeQL language identifiers.
+Unlike phase 1 (which picks only the dominant language), CodeQL should run for
+**every** language found so that polyglot codebases receive full coverage.
 
 | Detected file(s) | CodeQL language |
 |------------------|----------------|
@@ -439,46 +563,83 @@ Map the project's primary language to a CodeQL language identifier:
 | `*.swift` | `swift` |
 
 ```bash
-# Detect dominant language by file count
-CODEQL_LANG=""
-for ext_lang in "py:python" "js:javascript" "ts:javascript" "java:java" "go:go" "cs:csharp" "rb:ruby" "cpp:cpp" "swift:swift"; do
+# Collect ALL languages present (not just the dominant one)
+CODEQL_LANGS=()
+declare -A seen_langs  # de-duplicate (e.g. js + ts both map to javascript)
+
+for ext_lang in "py:python" "js:javascript" "jsx:javascript" "ts:javascript" "tsx:javascript" \
+                "java:java" "go:go" "cs:csharp" "rb:ruby" \
+                "cpp:cpp" "c:cpp" "h:cpp" "swift:swift"; do
   ext="${ext_lang%%:*}"; lang="${ext_lang##*:}"
-  count=$(find . -name "*.${ext}" -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null | wc -l)
-  if [[ $count -gt 0 ]]; then CODEQL_LANG="$lang"; break; fi
+  if [[ -n "${seen_langs[$lang]+x}" ]]; then continue; fi
+  count=$(find . -name "*.${ext}" \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" \
+    -not -path "*/vendor/*" \
+    -not -path "*/dist/*" \
+    2>/dev/null | wc -l)
+  if [[ $count -gt 0 ]]; then
+    CODEQL_LANGS+=("$lang")
+    seen_langs[$lang]=1
+  fi
 done
 
-if [[ -z "$CODEQL_LANG" ]]; then
-  echo "[appsec] Could not detect a supported CodeQL language — skipping."
+# Also detect via manifest files for languages with few source files
+[[ -f go.mod   ]] && [[ -z "${seen_langs[go]+x}"      ]] && CODEQL_LANGS+=("go")      && seen_langs[go]=1
+[[ -f Gemfile  ]] && [[ -z "${seen_langs[ruby]+x}"    ]] && CODEQL_LANGS+=("ruby")    && seen_langs[ruby]=1
+[[ -n "$(find . -name 'pom.xml' -o -name '*.gradle' -not -path '*/.git/*' 2>/dev/null | head -1)" ]] \
+  && [[ -z "${seen_langs[java]+x}" ]] && CODEQL_LANGS+=("java") && seen_langs[java]=1
+
+if [[ ${#CODEQL_LANGS[@]} -eq 0 ]]; then
+  echo "[appsec] Could not detect any supported CodeQL language — skipping."
   CODEQL_AVAILABLE=false
+else
+  echo "[appsec] Detected CodeQL languages: ${CODEQL_LANGS[*]}"
 fi
 ```
 
-#### Step 2b.3: Create CodeQL Database
+#### Step 2b.3: Create CodeQL Databases and Run Analysis
+
+For each detected language, create a database and run the security-extended query suite.
+Compiled languages (Java, C#, C++) require a working build environment; skip gracefully
+if database creation fails.
 
 ```bash
-echo "[appsec] Creating CodeQL database (language: ${CODEQL_LANG})..."
-$CODEQL_CMD database create .codeql-db \
-  --language="${CODEQL_LANG}" \
-  --source-root=. \
-  --overwrite \
-  2>&1 | tail -5 || {
-    echo "[appsec] Warning: CodeQL database creation failed — skipping taint analysis."
-    CODEQL_AVAILABLE=false
-  }
+CODEQL_SARIF_FILES=()  # collect per-language SARIF paths for Phase 3
+
+for CODEQL_LANG in "${CODEQL_LANGS[@]}"; do
+  DB_DIR=".codeql-db-${CODEQL_LANG}"
+  LANG_SARIF="${OUTPUT_DIR}/codeql-results-${CODEQL_LANG}.sarif"
+
+  echo "[appsec] Creating CodeQL database (language: ${CODEQL_LANG})..."
+  $CODEQL_CMD database create "${DB_DIR}" \
+    --language="${CODEQL_LANG}" \
+    --source-root=. \
+    --overwrite \
+    2>&1 | tail -5 || {
+      echo "[appsec] Warning: CodeQL database creation failed for ${CODEQL_LANG} — skipping."
+      continue
+    }
+
+  echo "[appsec] Running CodeQL security-extended analysis (${CODEQL_LANG})..."
+  $CODEQL_CMD database analyze "${DB_DIR}" \
+    "codeql/${CODEQL_LANG}-queries:codeql-suites/${CODEQL_LANG}-security-extended.qls" \
+    --format=sarif-latest \
+    --output="${LANG_SARIF}" \
+    2>&1 | tail -5 || true
+
+  if [[ -f "${LANG_SARIF}" ]]; then
+    CODEQL_SARIF_FILES+=("${LANG_SARIF}")
+    echo "[appsec] CodeQL results written: ${LANG_SARIF}"
+  fi
+done
+
+# Backward-compat alias: point CODEQL_SARIF at the first result file (used in Phase 3 template)
+CODEQL_SARIF="${CODEQL_SARIF_FILES[0]:-${OUTPUT_DIR}/codeql-results.sarif}"
 ```
 
-Database creation requires a working build environment for compiled languages (Java, C#, C++). For interpreted languages (Python, JS, Ruby) it works without a build step.
-
-#### Step 2b.4: Run Security Analysis
-
-```bash
-echo "[appsec] Running CodeQL security-extended analysis..."
-$CODEQL_CMD database analyze .codeql-db \
-  "codeql/${CODEQL_LANG}-queries:codeql-suites/${CODEQL_LANG}-security-extended.qls" \
-  --format=sarif-latest \
-  --output="${CODEQL_SARIF}" \
-  2>&1 | tail -5 || true
-```
+Database creation requires a working build environment for compiled languages (Java, C#, C++).
+For interpreted languages (Python, JS, Ruby) it works without a build step.
 
 #### Step 2b.5: Parse SARIF Output
 
@@ -530,7 +691,15 @@ consolidated report explaining the gap.
 ```bash
 cat "${REPORT_FILE}"
 cat "${SEMGREP_JSON}" 2>/dev/null || echo "{}"
-cat "${CODEQL_SARIF}" 2>/dev/null || echo "{}"
+
+# Load all per-language CodeQL SARIF files
+if [[ ${#CODEQL_SARIF_FILES[@]} -gt 0 ]]; then
+  for sarif_file in "${CODEQL_SARIF_FILES[@]}"; do
+    cat "${sarif_file}" 2>/dev/null || true
+  done
+else
+  cat "${CODEQL_SARIF}" 2>/dev/null || echo "{}"
+fi
 ```
 
 #### Step 3.2: Cross-Validation Analysis
@@ -837,7 +1006,7 @@ Total Unique Issues:  [N]
 ## Appendix
 - Source: Primary audit report (`reports/security-audit-${TIMESTAMP}.md`)
 - Semgrep results: `reports/semgrep-results.json`
-- CodeQL results: `reports/codeql-results.sarif`
+- CodeQL results: `reports/codeql-results-<lang>.sarif` (one file per detected language)
 - OWASP Top 10: https://owasp.org/Top10/
 - CWE Database: https://cwe.mitre.org/
 - CodeQL query packs: https://docs.github.com/en/code-security/codeql-cli/getting-started-with-the-codeql-cli/about-the-codeql-cli
@@ -1015,7 +1184,7 @@ After writing both report files, output a brief terminal summary:
 [sentinel]   Target:         <absolute path>
 [sentinel]   AI findings:    X critical, X high, X medium, X low
 [sentinel]   Semgrep:        X findings (or: skipped)
-[sentinel]   CodeQL:         X findings (or: skipped / unsupported language)
+[sentinel]   CodeQL:         X findings across N language(s): [lang1, lang2, ...] (or: skipped / unsupported language)
 [sentinel]   Total unique:   X issues (X confirmed by multiple tools)
 [sentinel] ─────────────────────────────────────────────────────
 [sentinel]   Security Score: [SCORE]/100 [████████████░░░░░░░░] [RISK LEVEL]

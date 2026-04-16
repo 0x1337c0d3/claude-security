@@ -41,7 +41,14 @@ sophisticated persistent, and supply chain threats.
 
 Before dispatching agents, build context about the target codebase:
 
-1. Run `scripts/detect-stack.sh` in the project directory to understand languages, frameworks, and entry points.
+1. Detect languages, frameworks, and entry points by running:
+   ```bash
+   find . \( -name "package.json" -o -name "requirements.txt" -o -name "go.mod" \
+             -o -name "pom.xml" -o -name "*.csproj" -o -name "Gemfile" \) \
+     | grep -v node_modules | grep -v .git | head -20
+   find . \( -name "main.*" -o -name "app.*" -o -name "server.*" -o -name "routes.*" \) \
+     | grep -v node_modules | grep -v .git | head -20
+   ```
 2. If Sentinel has already run, load the most recent `reports/security-*.md` to give agents knowledge of known findings.
 3. If `/sentinel:audit` output is available, use it as additional context.
 

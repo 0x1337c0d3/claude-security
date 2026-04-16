@@ -46,8 +46,7 @@ Identify the application framework to determine route registration patterns:
 | gRPC | `.proto` service definitions |
 | GraphQL | Schema definitions, resolver registrations |
 
-Use Grep to find these patterns. Use the results from `scripts/detect-stack.sh`
-(Sentinel's stack detector) if already available.
+Use Grep to find these patterns directly in the source tree.
 
 ### Step 2 — Extract Entry Points
 

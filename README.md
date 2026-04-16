@@ -276,6 +276,9 @@ jobs:
 
 ```
 claude-security/
+├── .claude-plugin/
+│   ├── plugin.json                     # plugin manifest (name: claude-security)
+│   └── marketplace.json                # marketplace definition
 ├── skills/
 │   ├── sentinel/                       # /claude-security:sentinel skill
 │   │   ├── SKILL.md                    # 6-phase audit workflow
@@ -285,17 +288,19 @@ claude-security/
 │   │   │   ├── run-sast.sh             # Semgrep runner (auto + custom rules layered)
 │   │   │   └── consolidate.sh          # merge tool outputs, assign SENTINEL-XXX IDs
 │   │   ├── configs/semgrep-rules/      # custom rules (8 languages) on top of semgrep auto
+│   │   ├── references/                 # DREAD and STRIDE threat models
+│   │   ├── templates/                  # report.md
 │   │   └── skills/                     # sub-skills: audit, red-team, stride, api, etc.
-│   └── prompt-injection-defender/      # patterns + hook implementation
+│   └── prompt-injection-defender/
+│       ├── SKILL.md
+│       ├── patterns.yaml               # detection patterns (5 attack categories)
+│       ├── hooks/defender-python/      # hook implementation + tests
+│       ├── cookbook/                   # interactive install/modify/test workflows
+│       └── test-files/                 # injection test fixtures
 ├── hooks/
-│   └── hooks.json                      # Registers defender hook when plugin is installed
-├── commands/
-│   ├── install-git-hook.md             # /install-git-hook (local or --global)
-│   ├── install.md
-│   └── prime.md
-└── .github/
-    └── workflows/
-        └── sentinel.yml                # CI workflow (push/PR + reusable workflow_call)
+│   └── hooks.json                      # registers defender hook when plugin is installed
+└── commands/
+    └── install-git-hook.md             # /install-git-hook (local or --global)
 ```
 
 ---

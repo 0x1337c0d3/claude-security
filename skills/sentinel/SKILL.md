@@ -39,6 +39,7 @@ Key principles:
 | `--skip-semgrep` | Skip the Semgrep SAST scan (Phase 2). Useful when semgrep is not installed. |
 | `--skip-codeql` | Skip the CodeQL taint analysis (Phase 2b). Useful when codeql is not installed or the project has no build environment. |
 | `--skip-crossval` | Skip cross-validation (Phase 3). Implies `--skip-semgrep` and `--skip-codeql`. |
+| `--skip-secrets` | Skip the GitLeaks analysis (Phase 3.6). |
 | `--quiet` | Suppress progress messages; output findings only. |
 | `--format <md\|json>` | Output format for consolidated report. Default: `md`. |
 
@@ -401,6 +402,11 @@ REPORT_FILE="${OUTPUT_DIR}/security-audit-${TIMESTAMP}.md"
 CONSOLIDATED_FILE="${OUTPUT_DIR}/security-audit-consolidated-${TIMESTAMP}.md"
 SEMGREP_JSON="${OUTPUT_DIR}/semgrep-results.json"
 CODEQL_SARIF="${OUTPUT_DIR}/codeql-results.sarif"
+# Normalized JSON files for consolidate.sh (written at end of each phase)
+AI_FINDINGS_JSON="${OUTPUT_DIR}/ai-findings.json"
+SEMGREP_NORMALIZED="${OUTPUT_DIR}/semgrep-normalized.json"
+CODEQL_NORMALIZED="${OUTPUT_DIR}/codeql-normalized.json"
+CONSOLIDATED_JSON="${OUTPUT_DIR}/consolidated-findings.json"
 ```
 
 #### Step 1.6: Write Primary Audit Report
@@ -456,6 +462,21 @@ REPORTEOF
 ```
 
 Report **must** be written to `${REPORT_FILE}` (inside `reports/`, never a temp directory).
+
+After writing the report, also emit a machine-readable findings file for Phase 3 consolidation:
+
+```bash
+# Write AI findings in consolidate.sh-compatible format
+jq -n --argjson findings "$(echo '[
+  { "title": "VULN-001 title", "file": "path/file.py", "line": 42,
+    "severity": "HIGH", "message": "description", "source_tool": "claude",
+    "cwe": "CWE-89" }
+]')" '{tool: "claude", findings: $findings}' > "${AI_FINDINGS_JSON}"
+```
+
+Replace the placeholder array with the actual findings array built during the audit.
+Each finding object: `{title, file, line, severity, message, source_tool: "claude", cwe}`.
+Severity values: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`.
 
 ---
 
@@ -538,6 +559,28 @@ Categorise results:
 - **Best Practices**: hygiene / quality rules
 
 Count findings per category and severity for use in Phase 3.
+
+Then normalize to the `consolidate.sh` input format:
+
+```bash
+# Normalize Semgrep JSON → consolidate.sh format
+jq '{
+  tool: "semgrep",
+  findings: [.results[] | {
+    title: .check_id,
+    file: .path,
+    line: (.start.line // 0),
+    severity: (
+      if .extra.severity == "ERROR"   then "HIGH"
+      elif .extra.severity == "WARNING" then "MEDIUM"
+      else "LOW" end
+    ),
+    message: .extra.message,
+    source_tool: "semgrep",
+    cwe: (.extra.metadata.cwe // null)
+  }]
+}' "${SEMGREP_JSON}" > "${SEMGREP_NORMALIZED}"
+```
 
 ---
 
@@ -692,9 +735,36 @@ Severity mapping:
 | `warning` | Medium |
 | `recommendation` | Low |
 
-For taint-flow findings, extract the full **source → sink** path from `codeFlows` if present — this is CodeQL's differentiating value over Semgrep.
+For taint-flow findings, extract the full **source → sink** path from `codeFlows` if present — this is CodeQL's differentiating value over Semgrep. Store taint paths in a separate variable for use during Step 3.2 cross-validation commentary (not in the normalized findings file).
 
 Count findings per severity for use in Phase 3.
+
+Then normalize all per-language SARIF files into a single `consolidate.sh` input file:
+
+```bash
+# Normalize all CodeQL SARIF files → consolidate.sh format
+# Build a rules map (ruleId → CWE tag) from the driver rules section
+jq -s '{
+  tool: "codeql",
+  findings: [
+    .[] | .runs[]? |
+    (.tool.driver.rules // [] | map({key: .id, value: (.properties.tags // [] | map(select(startswith("external/cwe/"))) | first // null)}) | from_entries) as $rules |
+    .results[]? | {
+      title: .ruleId,
+      file: (.locations[0].physicalLocation.artifactLocation.uri // "unknown"),
+      line: (.locations[0].physicalLocation.region.startLine // 0),
+      severity: (
+        if (.properties.severity // "warning") == "error" then "HIGH"
+        elif (.properties.severity // "warning") == "warning" then "MEDIUM"
+        else "LOW" end
+      ),
+      message: .message.text,
+      source_tool: "codeql",
+      cwe: ($rules[.ruleId] // null)
+    }
+  ]
+}' "${CODEQL_SARIF_FILES[@]}" > "${CODEQL_NORMALIZED}"
+```
 
 ---
 
@@ -704,21 +774,40 @@ Skip this phase if `--skip-crossval` was supplied.
 If semgrep or codeql was skipped or produced no output, produce a note in the
 consolidated report explaining the gap.
 
-#### Step 3.1: Load All Reports
+#### Step 3.1: Consolidate Tool Outputs
+
+Run `consolidate.sh` on the normalized files written at the end of each phase.
+This deduplicates findings, assigns `SENTINEL-XXX` IDs, and produces a compact
+structured summary — avoiding the need to `cat` raw JSON/SARIF files into context.
 
 ```bash
-cat "${REPORT_FILE}"
-cat "${SEMGREP_JSON}" 2>/dev/null || echo "{}"
+SKILL_DIR="${CLAUDE_SKILL_DIR:-$(dirname "$0")}"
+CONSOLIDATE="${SKILL_DIR}/scripts/consolidate.sh"
 
-# Load all per-language CodeQL SARIF files
-if [[ ${#CODEQL_SARIF_FILES[@]} -gt 0 ]]; then
-  for sarif_file in "${CODEQL_SARIF_FILES[@]}"; do
-    cat "${sarif_file}" 2>/dev/null || true
-  done
+# Collect whichever normalized files exist
+NORM_FILES=()
+[[ -f "${AI_FINDINGS_JSON}" ]]   && NORM_FILES+=("${AI_FINDINGS_JSON}")
+[[ -f "${SEMGREP_NORMALIZED}" ]] && NORM_FILES+=("${SEMGREP_NORMALIZED}")
+[[ -f "${CODEQL_NORMALIZED}" ]]  && NORM_FILES+=("${CODEQL_NORMALIZED}")
+
+if [[ ${#NORM_FILES[@]} -gt 0 ]]; then
+  bash "${CONSOLIDATE}" "${NORM_FILES[@]}" > "${CONSOLIDATED_JSON}"
 else
-  cat "${CODEQL_SARIF}" 2>/dev/null || echo "{}"
+  echo '{"findings":[],"summary":{"total":0},"metadata":{}}' > "${CONSOLIDATED_JSON}"
 fi
+
+# Read the compact summary — findings with id/title/file/line/severity/source_tool only
+jq '{
+  summary,
+  metadata,
+  findings: [.findings[] | {id, title, file, line, severity, source_tool, cwe}]
+}' "${CONSOLIDATED_JSON}"
 ```
+
+This output is what Phase 3 analysis operates on. Do **not** `cat` the raw
+`SEMGREP_JSON` or `CODEQL_SARIF` files — all relevant data is already extracted
+into the normalized files. The `source_tool` field on each finding drives the
+cross-validation table in Step 3.2.
 
 #### Step 3.2: Cross-Validation Analysis
 

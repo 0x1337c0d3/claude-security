@@ -4,9 +4,12 @@
 # ///
 
 import json
+import os
 import sys
 import re
 from pathlib import Path
+
+LOGGING_ENABLED = os.environ.get("CLAUDE_HOOK_LOGGING", "0") == "1"
 
 
 def is_dangerous_rm_command(command):
@@ -73,6 +76,7 @@ CREDENTIAL_PATHS = [
     r"\.pypirc",
 ]
 
+
 def is_credential_file_access(tool_name, tool_input):
     """
     Block access to sensitive credential files outside of .env naming.
@@ -89,6 +93,7 @@ def is_credential_file_access(tool_name, tool_input):
                 if re.search(pattern, command):
                     return True
     return False
+
 
 def is_env_file_access(tool_name, tool_input):
     """
@@ -119,6 +124,25 @@ def is_env_file_access(tool_name, tool_input):
                     return True
 
     return False
+
+
+def log_event(input_data, filename):
+    if not LOGGING_ENABLED:
+        return
+    log_dir = Path.cwd() / ".claude-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / filename
+    if log_path.exists():
+        with open(log_path, "r") as f:
+            try:
+                log_data = json.load(f)
+            except (json.JSONDecodeError, ValueError):
+                log_data = []
+    else:
+        log_data = []
+    log_data.append(input_data)
+    with open(log_path, "w") as f:
+        json.dump(log_data, f, indent=2)
 
 
 def main():
@@ -162,27 +186,7 @@ def main():
                 )
                 sys.exit(2)  # Exit code 2 blocks tool call and shows error to Claude
 
-        # Ensure log directory exists
-        log_dir = Path.cwd() / ".claude-logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / "pre_tool_use.json"
-
-        # Read existing log data or initialize empty list
-        if log_path.exists():
-            with open(log_path, "r") as f:
-                try:
-                    log_data = json.load(f)
-                except (json.JSONDecodeError, ValueError):
-                    log_data = []
-        else:
-            log_data = []
-
-        # Append new data
-        log_data.append(input_data)
-
-        # Write back to file with formatting
-        with open(log_path, "w") as f:
-            json.dump(log_data, f, indent=2)
+        log_event(input_data, "pre_tool_use.json")
 
         sys.exit(0)
 

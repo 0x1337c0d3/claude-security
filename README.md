@@ -225,6 +225,53 @@ git config --global core.hooksPath ~/.config/sentinel/hooks
 SENTINEL_SKIP=1 git commit -m "hotfix: deploy now, fix security after"
 ```
 
+## Tool Logger
+
+The Safety Hook and Defender hook both support opt-in audit logging via the `CLAUDE_HOOK_LOGGING` environment variable.
+
+When enabled, every tool call is appended to a JSON log file in `.claude-logs/` so you can replay sessions, audit what Claude touched, or debug hook behaviour.
+
+### Enable
+
+```bash
+CLAUDE_HOOK_LOGGING=1 claude
+```
+
+Or set it permanently in your shell profile:
+
+```bash
+export CLAUDE_HOOK_LOGGING=1
+```
+
+### What Gets Logged
+
+| File | Hook | Contents |
+|------|------|----------|
+| `.claude-logs/pre_tool_use.json` | PreToolUse (Safety Hook) | Every tool call before execution — `tool_name`, `tool_input`, session metadata |
+| `.claude-logs/post_tool_use.json` | PostToolUse (Defender) | Every tool result after execution — same fields plus tool output |
+
+Both files are JSON arrays. Each entry is the raw hook payload Claude Code passes to the hook script:
+
+```json
+[
+  {
+    "tool_name": "Read",
+    "tool_input": { "file_path": "/path/to/file.md" },
+    "session_id": "abc123"
+  }
+]
+```
+
+New entries are appended to the array on each invocation. The files are created automatically on first use; the `.claude-logs/` directory is created if it doesn't exist.
+
+### Notes
+
+- Logging is **off by default** (`CLAUDE_HOOK_LOGGING=0`). No files are created unless you opt in.
+- Logs accumulate across sessions. Rotate or delete `.claude-logs/*.json` when no longer needed.
+- Add `.claude-logs/` to `.gitignore` to avoid committing session logs.
+
+---
+
 ## Project Structure
 
 ```

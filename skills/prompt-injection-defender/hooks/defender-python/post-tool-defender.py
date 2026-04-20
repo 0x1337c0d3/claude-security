@@ -29,6 +29,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+LOGGING_ENABLED = os.environ.get("CLAUDE_HOOK_LOGGING", "0") == "1"
+
 try:
     import yaml
 except ImportError:
@@ -284,8 +286,12 @@ def get_source_info(tool_name: str, tool_input: Dict[str, Any]) -> str:
         return f"{tool_name} output"
 
 
-def log_data(input_data: Dict[str, Any], detections: List[Tuple[str, str, str, str]]) -> None:
+def log_data(
+    input_data: Dict[str, Any], detections: List[Tuple[str, str, str, str]]
+) -> None:
     """Append hook input and any detections to a JSON log file."""
+    if not LOGGING_ENABLED:
+        return
     try:
         log_dir = Path.cwd() / ".claude-logs"
         log_dir.mkdir(parents=True, exist_ok=True)
